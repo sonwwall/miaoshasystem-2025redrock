@@ -81,21 +81,64 @@ func StartKafkaConsumer() {
 
 var c *gin.Context
 
+//func HandleSeckill(productName, username string, c *gin.Context) {
+//
+//	err := sql.DB.Model(&Product{}).Where("name = ?", productName).Update("num", gorm.Expr("num - ?", 1))
+//	if err != nil {
+//		fmt.Printf("创建订单失败: %v\n", err)
+//	}
+//	errr := sql.R.Set(context.Background(), username, productName, 60*60*time.Second).Err()
+//	if errr != nil {
+//		fmt.Printf("Failed to set order: %v\n", err)
+//		return
+//	} //创建订单，保存在数据库中
+//	//接下来返回订单给前端
+//	c.JSON(400, gin.H{"success": "订单创建成功",
+//		"time":         time.Now(),
+//		"username":     username,
+//		"product name": productName,
+//		"注意":           "未支付的订单将在一个小时之后失效",
+//	})
+//}
+
 func HandleSeckill(productName, username string, c *gin.Context) {
-	err := sql.DB.Model(&Product{}).Where("name = ?", productName).Update("num", gorm.Expr("num - ?", 1))
+	now := time.Now().Unix()
+	var product Product
+	err := sql.DB.First(&product, "name = ?", productName).Error
+	if err != nil {
+		fmt.Printf("查询产品失败: %v\n", err)
+		c.JSON(400, gin.H{"error": "产品不存在"})
+		return
+	}
+
+	// 判断是否在秒杀时间内
+	if now < product.TimeBegintokill || now > product.TimeEndkill {
+		c.JSON(400, gin.H{"error": "不在活动时间内"})
+		return
+	}
+
+	// 先减库存
+	err = sql.DB.Model(&Product{}).Where("name = ?", productName).Update("num", gorm.Expr("num - ?", 1)).Error
 	if err != nil {
 		fmt.Printf("创建订单失败: %v\n", err)
-	} //先减库存
+		c.JSON(400, gin.H{"error": "创建订单失败"})
+		return
+	}
+
+	// 将订单信息存入Redis
 	errr := sql.R.Set(context.Background(), username, productName, 60*60*time.Second).Err()
 	if errr != nil {
-		fmt.Printf("Failed to set order: %v\n", err)
+		fmt.Printf("Failed to set order: %v\n", errr)
+		c.JSON(400, gin.H{"error": "订单存储失败"})
 		return
-	} //创建订单，保存在数据库中
-	//接下来返回订单给前端
-	c.JSON(400, gin.H{"success": "订单创建成功",
+	}
+
+	// 返回订单信息给前端
+	c.JSON(200, gin.H{
+		"success":      "订单创建成功",
 		"time":         time.Now(),
 		"username":     username,
 		"product name": productName,
-		"注意":"未支付的订单将在一个小时之后失效",
+		"注意":           "未支付的订单将在一个小时之后失效",
 	})
 }
