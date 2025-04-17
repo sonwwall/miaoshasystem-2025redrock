@@ -24,13 +24,13 @@ type Product struct {
 }
 
 func CreateTable() {
-	err := sql.DB.AutoMigrate(&User{}).Error
+	err := sql.DB.AutoMigrate(&User{})
 	if err != nil {
 		fmt.Println("Failed to migrate:", err)
 		return
 	}
-	err2 := sql.DB.AutoMigrate(&Product{}).Error
-	if err2 != nil {
+	err = sql.DB.AutoMigrate(&Product{})
+	if err != nil {
 		fmt.Println("Failed to migrate:", err)
 		return
 	}
